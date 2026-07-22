@@ -1,0 +1,36 @@
+
+# Python
+**/__pycache__
+**/*.pyc
+**/*.pyo
+*.egg-info
+dist/
+build/
+*.egg
+.eggs/
+
+# Virtual environment
+**/.venv
+**/venv/
+**/.env
+
+# IDE
+.vscode/
+.idea/
+
+# Notebooks
+**/*.ipynb
+
+# Data / output
+data/
+downloads/
+tmp/
+output/
+
+# Agent
+**/AGENTS.md
+**/CLAUDE.md
+
+# OS
+.DS_Store
+Thumbs.db
