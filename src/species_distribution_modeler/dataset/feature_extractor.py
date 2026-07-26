@@ -6,7 +6,7 @@ from species_distribution_modeler.config.schemas import PathConfig
 from species_distribution_modeler.dataset import gsi_dem, jaxa_lulc
 
 
-def extract(
+def extract_features(
         center: tuple[float, float],
         path_cfg: PathConfig,
         radius_list: list[int],

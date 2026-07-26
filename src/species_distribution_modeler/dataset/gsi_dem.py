@@ -66,7 +66,16 @@ def _read_submesh(zip_path, sub_idx: int) -> tuple[npt.NDArray, rasterio.Affine]
         (elevation, transform)。elevation は (150, 225) の2次元配列
     """
     with zipfile.ZipFile(zip_path) as z:
-        root = ET.fromstring(z.read(sorted(z.namelist())[sub_idx]))
+        names = z.namelist()
+        # ファイル名のパターンから目的のインデックスを検索
+        # FG-GML-{code}-{NN:02d}-DEM5A-{date}.xml の NN が sub_idx
+        target = f"{sub_idx:02d}"
+        for name in names:
+            if name.split("-")[4] == target:
+                root = ET.fromstring(z.read(name))
+                break
+        else:
+            raise IndexError(f"Submesh {sub_idx} not found in {zip_path.name}")
 
     # 地理範囲を取得
     env = root.find(".//gml:Envelope", _NS)
@@ -75,14 +84,23 @@ def _read_submesh(zip_path, sub_idx: int) -> tuple[npt.NDArray, rasterio.Affine]
     lat_min, lon_min = float(lo[0]), float(lo[1])  # 南西端
     lat_max, lon_max = float(hi[0]), float(hi[1])  # 北東端
 
-    # グリッドサイズ（225列 × 150行）
+    # グリッドサイズ（225列 × 150行が標準）
     high = root.find(".//gml:high", _NS).text.split()
-    n_cols, n_rows = int(high[0]) + 1, int(high[1]) + 1
+    n_cols, n_rows_decl = int(high[0]) + 1, int(high[1]) + 1
 
     # 標高値を"地表面,標高値"のリストからパース
     tuples = root.find(".//gml:tupleList", _NS)
     lines = tuples.text.strip().splitlines()
     elev = np.array([float(line.split(",")[1]) for line in lines])
+
+    # 端のサブメッシュでは宣言よりデータが少ない場合がある
+    # 実際の行数を計算し不足分は -9999 で埋めて reshape
+    if len(elev) < n_cols * n_rows_decl:
+        n_rows = int(np.ceil(len(elev) / n_cols))
+        elev = np.pad(elev, (0, n_cols * n_rows - len(elev)),
+                      constant_values=-9999)
+    else:
+        n_rows = n_rows_decl
     elev = elev.reshape(n_rows, n_cols)
 
     # rasterio transformを作成
@@ -114,10 +132,12 @@ def sample_at_point(center: tuple[float, float], raster_dir: Path) -> float:
         if not (lat_min <= lat < lat_max and lon_min <= lon < lon_max):
             continue
 
-        # サブメッシュ位置を計算（10×10 grid 内の i, j）
-        si = int((lat - lat_min) / dlat)
-        sj = int((lon - lon_min) / dlon)
-        elev, tr = _read_submesh(zip_path, si * 10 + sj)
+        # サブメッシュ位置を計算（10×10 grid 内の i、0-9にclamp）
+        si = max(0, min(9, int((lat - lat_min) / dlat)))
+        sj = max(0, min(9, int((lon - lon_min) / dlon)))
+        sub_idx = si * 10 + sj
+
+        elev, tr = _read_submesh(zip_path, sub_idx)
 
         # 標高値のピクセル座標に変換
         col = int((lon - tr.c) / tr.a)
@@ -171,6 +191,10 @@ def summarize_in_circle(
         if bbox[3] < lat_min or bbox[1] > lat_max:
             continue
 
+        # zip内の使用可能なサブメッシュインデックス一覧を取得
+        with zipfile.ZipFile(zip_path) as z:
+            available = {int(n.split("-")[4]) for n in z.namelist()}
+
         # bbox にかかるサブメッシュ範囲を計算（0〜9 に clamp）
         si0 = max(0, int((bbox[1] - lat_min) / dlat))
         si1 = min(9, int((bbox[3] - lat_min) / dlat))
@@ -179,7 +203,9 @@ def summarize_in_circle(
 
         for si in range(si0, si1 + 1):
             for sj in range(sj0, sj1 + 1):
-                tiles.append((zip_path, si * 10 + sj))
+                sidx = si * 10 + sj
+                if sidx in available:
+                    tiles.append((zip_path, sidx))
 
     # マスク処理
     all_valid = []
