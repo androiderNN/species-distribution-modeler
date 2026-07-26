@@ -10,8 +10,8 @@ import xml.etree.ElementTree as ET
 
 
 _NS = {"gml": "http://www.opengis.net/gml/3.2"}
-# カバレッジインデックス（lazy build）
-_coverage_index: list | None = None
+_coverage_index: list | None = None # カバレッジインデックス（lazy build）
+DEM_SUMMARY_NAMES = ["dem_mean", "dem_min", "dem_max", "dem_std"]
 
 
 def _build_coverage_index(raster_dir: Path) -> list:
@@ -94,19 +94,19 @@ def _read_submesh(zip_path, sub_idx: int) -> tuple[npt.NDArray, rasterio.Affine]
     return elev, tr
 
 
-def sample_at_point(raster_dir: Path, lat: float, lon: float) -> float:
+def sample_at_point(center: tuple[float, float], raster_dir: Path) -> float:
     """
     指定した座標の標高値を返す
     該当するzip → サブメッシュ → ピクセル と解決する
 
     Args:
+        center: 抽出地点の座標
         raster_dir: DSM zipファイルのあるディレクトリ
-        lat: 緯度
-        lon: 経度
 
     Returns:
         標高値（m）。値-9999は欠損（水域等）でNaNを返す
     """
+    lat, lon = center
     idx = _build_coverage_index(raster_dir)
 
     for zip_path, lat_min, lat_max, lon_min, lon_max, dlat, dlon in idx:

@@ -47,6 +47,8 @@ LULC_CATEGORIES_JP = {
     15: '岩礁・干潟',
 }
 
+LULC_SUMMARY_NAMES = [f"lulc_{n}" for n in LULC_CATEGORIES_EN.keys()]
+
 
 def coord_to_tile_path(raster_dir: Path, lat: float, lon: float) -> Path:
     """
@@ -64,6 +66,27 @@ def coord_to_tile_path(raster_dir: Path, lat: float, lon: float) -> Path:
         raise FileNotFoundError(f"{tif_path} not found.")
 
     return tif_path
+
+
+def sample_at_point(center: tuple[float, float], raster_dir: Path) -> float:
+    """
+    指定した座標の土地利用クラスIDを返す
+
+    Args:
+        center: 抽出地点の座標
+        raster_dir: tifの保存先
+
+    Returns:
+        土地利用クラスID（1-15）。NoDataの場合は0を返す
+    """
+    lat, lon = center
+    tif_path = coord_to_tile_path(raster_dir, lat, lon)
+
+    with rasterio.open(tif_path) as src:
+        row, col = src.index(lon, lat)
+        val = int(src.read(1)[row, col])
+
+    return val if val != 0 else 0.0
 
 
 def summarize_in_circle(
@@ -105,10 +128,7 @@ def summarize_in_circle(
         range(int(math.floor(lat_min)), int(math.floor(lat_max)) + 1),
         range(int(math.floor(lon_min)), int(math.floor(lon_max)) + 1)
     ):
-        try:
-            tif_path = coord_to_tile_path(raster_dir, lat_idx + 0.5, lon_idx + 0.5)
-        except FileNotFoundError:
-            continue
+        tif_path = coord_to_tile_path(raster_dir, lat_idx + 0.5, lon_idx + 0.5)
 
         with rasterio.open(tif_path) as src:
             out_image, _ = mask(src, geom, crop=True, all_touched=True)
