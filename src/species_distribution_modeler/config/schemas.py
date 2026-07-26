@@ -4,7 +4,7 @@ from pydantic import BaseModel
 
 class PathConfig(BaseModel):
     """各種パス"""
-    dsm_dir: Path
+    dem_dir: Path
     lulc_dir: Path
 
 

@@ -1,2 +1,2 @@
 lulc_dir: "data/gis/jaxa_LULC"
-dsm_dir: "data/gis/gsi_DSM"
+dem_dir: "data/gis/gsi_DEM"
